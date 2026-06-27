@@ -1,0 +1,7 @@
+# Dependencies, build output, and local runtime data (also covered per-app).
+node_modules/
+dist/
+data/
+*.db
+*.db-shm
+*.db-wal
