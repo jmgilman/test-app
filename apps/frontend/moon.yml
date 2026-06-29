@@ -1,0 +1,15 @@
+language: 'typescript'
+layer: 'application'
+stack: 'frontend'
+# `spa` drives task inheritance; `image` marks this project as one that produces a
+# container image (queryable later via `moon query projects --tag image`).
+tags:
+  - 'spa'
+  - 'image'
+
+project:
+  title: 'pastebin frontend'
+  description: 'React + Vite pastebin SPA.'
+
+toolchains:
+  default: 'system'

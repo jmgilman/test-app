@@ -1,0 +1,38 @@
+# Inherited tasks for Go service projects (tagged `go-service`).
+#
+# A new Go service is onboarded by creating its directory under apps/ with a
+# moon.yml that tags it `go-service`; it inherits build/test/lint for free. No
+# changes to this file or to the CI workflow are required.
+inheritedBy:
+  tags:
+    or: ['go-service']
+
+fileGroups:
+  goSources:
+    - '**/*.go'
+    - 'go.mod'
+    - 'go.sum'
+    # Under the `system` toolchain moon does not hash the Go binary's version, so
+    # the mise pins are inputs too — bumping any tool in mise busts the cache.
+    - '/mise.toml'
+    - '/mise.lock'
+
+tasks:
+  build:
+    command: 'go build ./...'
+    inputs:
+      - '@group(goSources)'
+
+  test:
+    command: 'go test ./...'
+    inputs:
+      - '@group(goSources)'
+    options:
+      cache: false
+
+  lint:
+    command: 'golangci-lint run ./...'
+    inputs:
+      - '@group(goSources)'
+    options:
+      cache: false
