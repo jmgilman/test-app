@@ -1,0 +1,87 @@
+name: Release Please
+
+# release-please owns versioning for each project independently. On every push to
+# main it opens/updates a per-component release PR (separate-pull-requests). Merging
+# a release PR tags `apps/<project>/vX.Y.Z` and cuts a GitHub release, which then
+# drives the image publish below.
+on:
+  push:
+    branches: [main]
+
+# Minimal default; each job widens only what it needs.
+permissions: {}
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      paths_released: ${{ steps.release.outputs.paths_released }}
+    steps:
+      - name: Run release-please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Generic publisher: builds and pushes an image for each project that was just
+  # released, tagged with that project's semver version. moon stays the executor —
+  # release-please decides what/which version, this job maps released paths to moon
+  # projects (by source) and runs the inherited image-publish task. It never names a
+  # project, so new image projects are picked up automatically.
+  publish-images:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GOTOOLCHAIN: local
+      IMAGE_REGISTRY: ghcr.io/jmgilman
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup mise
+        uses: jdx/mise-action@v4
+        with:
+          version: 2026.6.14
+          cache: true
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish released images
+        env:
+          PATHS_RELEASED: ${{ needs.release-please.outputs.paths_released }}
+        run: |
+          set -euo pipefail
+          # paths_released is a JSON array of the package paths released on this run.
+          for path in $(echo "$PATHS_RELEASED" | jq -r '.[]'); do
+            # The merged release PR already wrote the bumped version to the manifest.
+            version="$(jq -r --arg p "$path" '.[$p]' .release-please-manifest.json)"
+            # Map the released path to its moon project id, but only if that project
+            # produces an image (tagged `image`). Non-image releases are skipped.
+            project="$(moon query projects \
+              | jq -r --arg s "$path" '.projects[]
+                  | select(.config.tags | index("image"))
+                  | select(.source == $s)
+                  | .id')"
+            if [ -z "$project" ]; then
+              echo "no image project for released path '$path' — skipping"
+              continue
+            fi
+            echo "publishing image for '$project' (path '$path') at version '$version'"
+            IMAGE_TAG="$version" moon run "$project:image-publish"
+          done
