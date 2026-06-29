@@ -1,0 +1,29 @@
+package:
+  name: frontend
+  version: "0.0.0"
+  epoch: 0
+  description: Pastebin frontend SPA (static assets served by lighttpd)
+
+environment:
+  contents:
+    repositories:
+      - https://packages.wolfi.dev/os
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    packages:
+      - busybox
+      - nodejs-24
+      - npm
+  environment:
+    CI: "true"
+
+pipeline:
+  - name: Build the production bundle
+    runs: |
+      npm ci
+      npm run build
+  - name: Install the bundle and server config into the package
+    runs: |
+      install -d "${{targets.destdir}}/usr/share/webapp"
+      cp -r dist/. "${{targets.destdir}}/usr/share/webapp/"
+      install -Dm644 lighttpd.conf "${{targets.destdir}}/etc/lighttpd/lighttpd.conf"

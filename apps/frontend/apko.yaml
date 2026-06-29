@@ -1,0 +1,33 @@
+contents:
+  repositories:
+    - https://packages.wolfi.dev/os
+    - "@local ./packages"
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+  packages:
+    - wolfi-baselayout
+    - lighttpd
+    - frontend@local
+
+entrypoint:
+  command: /usr/sbin/lighttpd -D -f /etc/lighttpd/lighttpd.conf
+
+# Serve as a non-root user on an unprivileged port.
+accounts:
+  groups:
+    - groupname: nonroot
+      gid: 65532
+  users:
+    - username: nonroot
+      uid: 65532
+      gid: 65532
+  run-as: 65532
+
+archs:
+  - amd64
+  - arm64
+
+annotations:
+  org.opencontainers.image.title: frontend
+  org.opencontainers.image.description: Pastebin frontend SPA
+  org.opencontainers.image.source: https://github.com/jmgilman/test-app
