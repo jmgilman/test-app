@@ -33,7 +33,7 @@ func NewStore(path string) (*Store, error) {
 	}
 
 	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 
@@ -43,7 +43,7 @@ func NewStore(path string) (*Store, error) {
 		content TEXT NOT NULL,
 		created_at TEXT NOT NULL
 	)`); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 
