@@ -1,0 +1,17 @@
+# Single source of truth for ALL tool versions: language runtimes AND CLIs
+# (incl. moon itself). moon declares no toolchains and runs the `system` binaries
+# mise puts on PATH. CI installs these via jdx/mise-action.
+[tools]
+go = "1.26.4"
+node = "24"
+
+"aqua:golangci/golangci-lint" = "2.12.2"
+"aqua:moonrepo/moon"          = "2.3.5"
+
+[env]
+# Never auto-download a Go toolchain other than the one pinned above.
+GOTOOLCHAIN = "local"
+
+[settings]
+lockfile = true
+locked = true

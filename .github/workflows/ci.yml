@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: local
+
+# Generic driver: install the mise-pinned toolchain, then let moon run the
+# affected tasks. This workflow never names a project, so it never changes as
+# projects are added or removed.
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup mise
+        uses: jdx/mise-action@v4
+        with:
+          version: 2026.6.14
+          cache: true
+
+      - name: Run moon CI
+        run: moon ci --summary minimal

@@ -14,7 +14,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("open store: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	srv := &Server{store: store}
 

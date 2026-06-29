@@ -1,0 +1,3 @@
+# Tool versions (Go, Node, and the CLIs) are managed by mise (mise.toml +
+# mise.lock); every moon task runs against the `system` binaries mise puts on
+# PATH, so no language toolchain is declared here.

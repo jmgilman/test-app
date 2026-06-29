@@ -1,0 +1,42 @@
+# Inherited tasks for static SPA projects (tagged `spa`).
+#
+# A new SPA is onboarded by creating its directory under apps/ with a moon.yml
+# that tags it `spa`; it inherits install/build for free. No changes to this file
+# or to the CI workflow are required.
+inheritedBy:
+  tags:
+    or: ['spa']
+
+fileGroups:
+  sources:
+    - 'src/**/*'
+    - 'index.html'
+    - 'public/**/*'
+  configs:
+    - 'package.json'
+    - 'package-lock.json'
+    - 'tsconfig*.json'
+    - 'vite.config.ts'
+    - '/mise.toml'
+    - '/mise.lock'
+
+tasks:
+  install:
+    command: 'npm ci'
+    inputs:
+      - 'package.json'
+      - 'package-lock.json'
+      - '/mise.toml'
+      - '/mise.lock'
+    options:
+      cache: false
+
+  build:
+    command: 'npm run build'
+    deps:
+      - '~:install'
+    inputs:
+      - '@group(sources)'
+      - '@group(configs)'
+    outputs:
+      - 'dist'

@@ -1,0 +1,15 @@
+language: 'go'
+layer: 'application'
+stack: 'backend'
+# `go-service` drives task inheritance; `image` marks this project as one that
+# produces a container image (queryable later via `moon query projects --tag image`).
+tags:
+  - 'go-service'
+  - 'image'
+
+project:
+  title: 'pastebin backend'
+  description: 'Go pastebin API.'
+
+toolchains:
+  default: 'system'

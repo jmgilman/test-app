@@ -5,3 +5,7 @@ data/
 *.db
 *.db-shm
 *.db-wal
+
+# moon generated (must never be committed — stale cache breaks CI)
+.moon/cache/
+.moon/docker/

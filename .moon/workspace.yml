@@ -1,0 +1,12 @@
+# Auto-discover every project under apps/. Dropping a new directory there with a
+# moon.yml is all it takes to onboard a project — no edits here, no edits to CI.
+projects:
+  globs:
+    - 'apps/*'
+
+vcs:
+  defaultBranch: 'main'
+  provider: 'github'
+
+pipeline:
+  installDependencies: false
