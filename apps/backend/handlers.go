@@ -63,7 +63,10 @@ func (s *Server) getPaste(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "ok",
+		"service": "pastebin-backend",
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
