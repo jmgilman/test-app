@@ -1,6 +1,6 @@
 # Inherited tasks for static SPA projects (tagged `spa`).
 #
-# A new SPA is onboarded by creating its directory under apps/ with a moon.yml
+# A new SPA is onboarded by creating its root-level directory with a moon.yml
 # that tags it `spa`; it inherits install/build for free. No changes to this file
 # or to the CI workflow are required.
 inheritedBy:

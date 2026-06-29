@@ -6,8 +6,8 @@ No auth, single-replica by design — intentionally hacky.
 
 ## Layout
 
-- `apps/backend` — Go API (`net/http`, pure-Go SQLite via `modernc.org/sqlite`).
-- `apps/frontend` — React + Vite + TypeScript SPA.
+- `backend` — Go API (`net/http`, pure-Go SQLite via `modernc.org/sqlite`).
+- `frontend` — React + Vite + TypeScript SPA.
 
 ## API
 
@@ -23,14 +23,14 @@ Paste IDs are 8-char base62 slugs. Data persists to SQLite at `DATABASE_PATH`
 Backend (port 8080):
 
 ```bash
-cd apps/backend
+cd backend
 go run .
 ```
 
 Frontend (port 5173; dev server proxies `/api` → `http://localhost:8080`):
 
 ```bash
-cd apps/frontend
+cd frontend
 npm install
 npm run dev
 ```

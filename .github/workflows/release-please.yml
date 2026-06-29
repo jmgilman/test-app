@@ -2,7 +2,7 @@ name: Release Please
 
 # release-please owns versioning for each project independently. On every push to
 # main it opens/updates a per-component release PR (separate-pull-requests). Merging
-# a release PR tags `apps/<project>/vX.Y.Z` and cuts a GitHub release, which then
+# a release PR tags `<project>/vX.Y.Z` and cuts a GitHub release, which then
 # drives the image publish below.
 on:
   push:
