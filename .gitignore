@@ -9,3 +9,10 @@ data/
 # moon generated (must never be committed — stale cache breaks CI)
 .moon/cache/
 .moon/docker/
+
+# image build artifacts (melange/apko)
+packages/
+*.tar
+melange.rsa
+melange.rsa.pub
+sbom/

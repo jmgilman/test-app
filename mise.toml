@@ -8,6 +8,10 @@ node = "24"
 "aqua:golangci/golangci-lint" = "2.12.2"
 "aqua:moonrepo/moon"          = "2.3.5"
 
+# Image build: melange (source -> signed Wolfi apk) + apko (apk -> minimal OCI image).
+"aqua:chainguard-dev/melange" = "0.54.0"
+"aqua:chainguard-dev/apko"    = "1.2.19"
+
 [env]
 # Never auto-download a Go toolchain other than the one pinned above.
 GOTOOLCHAIN = "local"

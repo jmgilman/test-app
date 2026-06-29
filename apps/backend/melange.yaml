@@ -1,0 +1,24 @@
+package:
+  name: backend
+  version: "0.0.0"
+  epoch: 0
+  description: Pastebin backend API
+
+environment:
+  contents:
+    repositories:
+      - https://packages.wolfi.dev/os
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    packages:
+      - go-1.26
+  environment:
+    CGO_ENABLED: "0"
+
+pipeline:
+  - uses: go/build
+    with:
+      packages: .
+      output: backend
+      go-package: go-1.26
+      modroot: .

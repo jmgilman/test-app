@@ -1,0 +1,62 @@
+# Inherited image tasks for any project that produces a container image
+# (tagged `image`). Language-agnostic: the per-stack differences live entirely in
+# each project's melange.yaml + apko.yaml. A new image-producing project is
+# onboarded by adding those two files and the `image` tag — no edits here, and the
+# release workflow (which targets `#image:image-publish`) picks it up automatically.
+inheritedBy:
+  tags:
+    or: ['image']
+
+fileGroups:
+  imageConfig:
+    - 'melange.yaml'
+    - 'apko.yaml'
+    - '/mise.toml'
+    - '/mise.lock'
+
+tasks:
+  # Build the image for the host arch and load it into the local Docker daemon as
+  # <project>:dev. Single-arch. For local dev and as a CI dry-run.
+  image:
+    script: |
+      set -euo pipefail
+      case "$(uname -m)" in
+        x86_64) arch=amd64 ;;
+        aarch64|arm64) arch=arm64 ;;
+        *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+      esac
+      rm -rf packages image.tar melange.rsa melange.rsa.pub
+      mkdir -p sbom
+      melange keygen melange.rsa
+      melange build melange.yaml --arch "$arch" --signing-key melange.rsa --runner docker --source-dir .
+      apko build apko.yaml "${MOON_PROJECT_ID}:dev" image.tar --arch "$arch" --keyring-append ./melange.rsa.pub --sbom-path sbom
+      docker load < image.tar
+      docker tag "${MOON_PROJECT_ID}:dev-${arch}" "${MOON_PROJECT_ID}:dev"
+      echo "loaded ${MOON_PROJECT_ID}:dev (arch ${arch})"
+    options:
+      cache: false
+      runInCI: false
+
+  # Build the signed apk and publish a single-arch image to the registry, tagged by
+  # the caller. Generic across projects: IMAGE_REGISTRY + IMAGE_TAG come from the
+  # release workflow; the image name is the moon project id.
+  image-publish:
+    script: |
+      set -euo pipefail
+      : "${IMAGE_REGISTRY:?set by the release workflow}"
+      : "${IMAGE_TAG:?set by the release workflow}"
+      case "$(uname -m)" in
+        x86_64) arch=amd64 ;;
+        aarch64|arm64) arch=arm64 ;;
+        *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+      esac
+      ref="${IMAGE_REGISTRY}/${MOON_PROJECT_ID}:${IMAGE_TAG}"
+      rm -rf packages melange.rsa melange.rsa.pub
+      mkdir -p sbom
+      melange keygen melange.rsa
+      melange build melange.yaml --arch "$arch" --signing-key melange.rsa --runner docker --source-dir .
+      apko publish apko.yaml "$ref" --arch "$arch" --keyring-append ./melange.rsa.pub --sbom-path sbom
+      echo "published $ref"
+    options:
+      cache: false
+      runInCI: false
