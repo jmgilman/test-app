@@ -43,8 +43,12 @@ tasks:
   image-publish:
     script: |
       set -euo pipefail
-      : "${IMAGE_REGISTRY:?set by the release workflow}"
-      : "${IMAGE_TAG:?set by the release workflow}"
+      # Publish only runs from the release workflow (which sets these). When the
+      # moon ci gate picks it up, it is a fast no-op rather than a failure.
+      if [ -z "${IMAGE_REGISTRY:-}" ] || [ -z "${IMAGE_TAG:-}" ]; then
+        echo "image-publish: IMAGE_REGISTRY/IMAGE_TAG unset — skipping (publish runs only in the release workflow)"
+        exit 0
+      fi
       case "$(uname -m)" in
         x86_64) arch=amd64 ;;
         aarch64|arm64) arch=arm64 ;;
@@ -57,6 +61,9 @@ tasks:
       melange build melange.yaml --arch "$arch" --signing-key melange.rsa --runner docker --source-dir .
       apko publish apko.yaml "$ref" --arch "$arch" --keyring-append ./melange.rsa.pub --sbom-path sbom
       echo "published $ref"
+    # No inputs → the moon ci gate never marks it affected; the release workflow runs
+    # it explicitly via `moon run '#image:image-publish'`. runInCI stays default (true)
+    # so it is not filtered out of `moon run` in a CI environment.
+    inputs: []
     options:
       cache: false
-      runInCI: false
