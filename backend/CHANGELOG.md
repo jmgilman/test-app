@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/jmgilman/test-app/compare/backend/v0.2.0...backend/v0.3.0) (2026-06-29)
+
+
+### Features
+
+* **backend:** set X-Content-Type-Options nosniff on responses ([fcda5ba](https://github.com/jmgilman/test-app/commit/fcda5ba21fca076b2d41e3c681664fa121b0acf3))
+
 ## [0.2.0](https://github.com/jmgilman/test-app/compare/apps/backend/v0.1.0...apps/backend/v0.2.0) (2026-06-29)
 
 
