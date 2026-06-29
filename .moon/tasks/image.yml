@@ -26,9 +26,10 @@ tasks:
         *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
       esac
       rm -rf packages image.tar melange.rsa melange.rsa.pub
+      mkdir -p sbom
       melange keygen melange.rsa
       melange build melange.yaml --arch "$arch" --signing-key melange.rsa --runner docker --source-dir .
-      apko build apko.yaml "${MOON_PROJECT_ID}:dev" image.tar --arch "$arch" --keyring-append ./melange.rsa.pub
+      apko build apko.yaml "${MOON_PROJECT_ID}:dev" image.tar --arch "$arch" --keyring-append ./melange.rsa.pub --sbom-path sbom
       docker load < image.tar
       docker tag "${MOON_PROJECT_ID}:dev-${arch}" "${MOON_PROJECT_ID}:dev"
       echo "loaded ${MOON_PROJECT_ID}:dev (arch ${arch})"
@@ -51,9 +52,10 @@ tasks:
       esac
       ref="${IMAGE_REGISTRY}/${MOON_PROJECT_ID}:${IMAGE_TAG}"
       rm -rf packages melange.rsa melange.rsa.pub
+      mkdir -p sbom
       melange keygen melange.rsa
       melange build melange.yaml --arch "$arch" --signing-key melange.rsa --runner docker --source-dir .
-      apko publish apko.yaml "$ref" --arch "$arch" --keyring-append ./melange.rsa.pub
+      apko publish apko.yaml "$ref" --arch "$arch" --keyring-append ./melange.rsa.pub --sbom-path sbom
       echo "published $ref"
     options:
       cache: false
