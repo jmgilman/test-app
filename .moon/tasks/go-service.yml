@@ -1,6 +1,6 @@
 # Inherited tasks for Go service projects (tagged `go-service`).
 #
-# A new Go service is onboarded by creating its directory under apps/ with a
+# A new Go service is onboarded by creating its root-level directory with a
 # moon.yml that tags it `go-service`; it inherits build/test/lint for free. No
 # changes to this file or to the CI workflow are required.
 inheritedBy:

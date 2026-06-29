@@ -2,15 +2,15 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "separate-pull-requests": true,
   "tag-separator": "/",
-  "bootstrap-sha": "4a4d4a62358e0b45cf8a0e25a92451dc2cd36072",
+  "bootstrap-sha": "169dc213e68578868ae65df73addec8b32b96870",
   "packages": {
-    "apps/backend": {
+    "backend": {
       "release-type": "go",
-      "component": "apps/backend"
+      "component": "backend"
     },
-    "apps/frontend": {
+    "frontend": {
       "release-type": "node",
-      "component": "apps/frontend"
+      "component": "frontend"
     }
   }
 }

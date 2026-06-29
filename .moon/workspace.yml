@@ -1,8 +1,10 @@
-# Auto-discover every project under apps/. Dropping a new directory there with a
-# moon.yml is all it takes to onboard a project — no edits here, no edits to CI.
+# Auto-discover root-level projects: any top-level directory that contains a
+# moon.yml is a project (so non-project siblings like docs/ or hack/ are ignored).
+# Dropping a new directory with a moon.yml is all it takes to onboard — no edits
+# here, no edits to CI.
 projects:
   globs:
-    - 'apps/*'
+    - '*/moon.yml'
 
 vcs:
   defaultBranch: 'main'

@@ -1,4 +1,4 @@
-module github.com/jmgilman/test-app/apps/backend
+module github.com/jmgilman/test-app/backend
 
 go 1.26
 
