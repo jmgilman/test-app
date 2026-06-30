@@ -12,6 +12,11 @@ node = "24"
 "aqua:chainguard-dev/melange" = "0.54.0"
 "aqua:chainguard-dev/apko"    = "1.2.19"
 
+# Release publish glue: jq (JSON) + yq (read each project's apko.yaml archs) drive the
+# generic build/assemble matrix in the release workflow's plan job.
+"aqua:jqlang/jq"  = "1.7.1"
+"aqua:mikefarah/yq" = "4.52.4"
+
 [env]
 # Never auto-download a Go toolchain other than the one pinned above.
 GOTOOLCHAIN = "local"

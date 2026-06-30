@@ -2,7 +2,13 @@
 # (tagged `image`). Language-agnostic: the per-stack differences live entirely in
 # each project's melange.yaml + apko.yaml. A new image-producing project is
 # onboarded by adding those two files and the `image` tag — no edits here, and the
-# release workflow (which targets `#image:image-publish`) picks it up automatically.
+# release workflow picks it up automatically by discovery.
+#
+# Multi-arch publishing is split into two env-driven tasks so the release workflow
+# can fan `image-build` out across native per-arch runners (melange must run on the
+# build arch) and then run a single `image-assemble` (apko needs no build arch — it
+# only lays apk files into a rootfs and writes the index). The split is what makes
+# the build deterministic: one arch, one process, one runner filesystem.
 inheritedBy:
   tags:
     or: ['image']
@@ -37,36 +43,50 @@ tasks:
       cache: false
       runInCI: false
 
-  # Build the signed apk and publish a multi-arch (amd64 + arm64) image to the
-  # registry, tagged by the caller. Generic across projects: IMAGE_REGISTRY +
-  # IMAGE_TAG come from the release workflow; the image name is the moon project id.
-  image-publish:
+  # Build the signed apk packages for ONE arch (MELANGE_ARCH, e.g. amd64). Output
+  # lands in packages/<goarch>/ (amd64->x86_64, arm64->aarch64). The signing key is
+  # provided by the caller (the release workflow keygens once and distributes
+  # melange.rsa to every build leg) so apko can verify every arch's index against a
+  # single keyring. The release workflow runs this on a native runner per arch.
+  image-build:
     script: |
       set -euo pipefail
-      # Publish only runs from the release workflow (which sets these). When the
-      # moon ci gate picks it up, it is a fast no-op rather than a failure.
-      if [ -z "${IMAGE_REGISTRY:-}" ] || [ -z "${IMAGE_TAG:-}" ]; then
-        echo "image-publish: IMAGE_REGISTRY/IMAGE_TAG unset — skipping (publish runs only in the release workflow)"
-        exit 0
+      : "${MELANGE_ARCH:?MELANGE_ARCH must be set (e.g. amd64 or arm64)}"
+      if [ ! -f melange.rsa ]; then
+        echo "image-build: melange.rsa not found in $(pwd) — the release workflow provides the shared signing key" >&2
+        exit 1
+      fi
+      rm -rf packages
+      melange build melange.yaml --arch "$MELANGE_ARCH" --signing-key melange.rsa --runner docker --source-dir .
+      echo "built ${MOON_PROJECT_ID} packages for arch ${MELANGE_ARCH}"
+    # No inputs → the moon ci gate never marks it affected; the release workflow runs
+    # it explicitly. runInCI stays default (true) so it is not filtered out of
+    # `moon run` in a CI environment.
+    inputs: []
+    options:
+      cache: false
+
+  # Assemble + publish a multi-arch image (APKO_ARCHS, e.g. "amd64,arm64") to the
+  # registry, tagged by the caller. Expects packages/<goarch>/ already populated for
+  # every requested arch (the release workflow collects the per-arch build artifacts)
+  # and melange.rsa.pub present. apko is the gate: its @local resolution hard-fails on
+  # a missing arch BEFORE any push, so a partial build can never publish a half index.
+  # The published reference (with digest) is written to apko-ref.txt for attestation.
+  image-assemble:
+    script: |
+      set -euo pipefail
+      : "${IMAGE_REGISTRY:?IMAGE_REGISTRY must be set (e.g. ghcr.io/owner)}"
+      : "${IMAGE_TAG:?IMAGE_TAG must be set (the semver version)}"
+      : "${APKO_ARCHS:?APKO_ARCHS must be set (e.g. amd64,arm64)}"
+      if [ ! -f melange.rsa.pub ]; then
+        echo "image-assemble: melange.rsa.pub not found in $(pwd) — the release workflow provides it" >&2
+        exit 1
       fi
       ref="${IMAGE_REGISTRY}/${MOON_PROJECT_ID}:${IMAGE_TAG}"
-      rm -rf packages melange.rsa melange.rsa.pub
+      rm -rf sbom
       mkdir -p sbom
-      melange keygen melange.rsa
-      # Multi-arch so the image runs on CI runners (amd64) and local arm64 dev
-      # clusters alike. melange is invoked once PER ARCH — a single
-      # `--arch amd64,arm64` invocation fails populating the second arch's
-      # workspace — then apko assembles a multi-arch index from both package sets.
-      # Cross-arch builds use qemu/binfmt (registered by docker/setup-qemu-action
-      # in CI; provided by Docker Desktop locally).
-      for arch in amd64 arm64; do
-        melange build melange.yaml --arch "$arch" --signing-key melange.rsa --runner docker --source-dir .
-      done
-      apko publish apko.yaml "$ref" --arch amd64,arm64 --keyring-append ./melange.rsa.pub --sbom-path sbom
-      echo "published $ref (amd64, arm64)"
-    # No inputs → the moon ci gate never marks it affected; the release workflow runs
-    # it explicitly via `moon run '#image:image-publish'`. runInCI stays default (true)
-    # so it is not filtered out of `moon run` in a CI environment.
+      apko publish apko.yaml "$ref" --arch "$APKO_ARCHS" --keyring-append ./melange.rsa.pub --sbom-path sbom > apko-ref.txt
+      echo "published $(cat apko-ref.txt) (${APKO_ARCHS})"
     inputs: []
     options:
       cache: false
