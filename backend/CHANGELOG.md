@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/jmgilman/test-app/compare/backend/v0.3.0...backend/v0.4.0) (2026-06-30)
+
+
+### Features
+
+* set X-Frame-Options: DENY (backend API + frontend) ([#11](https://github.com/jmgilman/test-app/issues/11)) ([3b312cf](https://github.com/jmgilman/test-app/commit/3b312cfeee2ad78ae88022651530e9bd90786a5e))
+
 ## [0.3.0](https://github.com/jmgilman/test-app/compare/backend/v0.2.0...backend/v0.3.0) (2026-06-29)
 
 
