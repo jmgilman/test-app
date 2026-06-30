@@ -37,9 +37,9 @@ tasks:
       cache: false
       runInCI: false
 
-  # Build the signed apk and publish a single-arch image to the registry, tagged by
-  # the caller. Generic across projects: IMAGE_REGISTRY + IMAGE_TAG come from the
-  # release workflow; the image name is the moon project id.
+  # Build the signed apk and publish a multi-arch (amd64 + arm64) image to the
+  # registry, tagged by the caller. Generic across projects: IMAGE_REGISTRY +
+  # IMAGE_TAG come from the release workflow; the image name is the moon project id.
   image-publish:
     script: |
       set -euo pipefail
@@ -49,18 +49,21 @@ tasks:
         echo "image-publish: IMAGE_REGISTRY/IMAGE_TAG unset — skipping (publish runs only in the release workflow)"
         exit 0
       fi
-      case "$(uname -m)" in
-        x86_64) arch=amd64 ;;
-        aarch64|arm64) arch=arm64 ;;
-        *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
-      esac
       ref="${IMAGE_REGISTRY}/${MOON_PROJECT_ID}:${IMAGE_TAG}"
       rm -rf packages melange.rsa melange.rsa.pub
       mkdir -p sbom
       melange keygen melange.rsa
-      melange build melange.yaml --arch "$arch" --signing-key melange.rsa --runner docker --source-dir .
-      apko publish apko.yaml "$ref" --arch "$arch" --keyring-append ./melange.rsa.pub --sbom-path sbom
-      echo "published $ref"
+      # Multi-arch so the image runs on CI runners (amd64) and local arm64 dev
+      # clusters alike. melange is invoked once PER ARCH — a single
+      # `--arch amd64,arm64` invocation fails populating the second arch's
+      # workspace — then apko assembles a multi-arch index from both package sets.
+      # Cross-arch builds use qemu/binfmt (registered by docker/setup-qemu-action
+      # in CI; provided by Docker Desktop locally).
+      for arch in amd64 arm64; do
+        melange build melange.yaml --arch "$arch" --signing-key melange.rsa --runner docker --source-dir .
+      done
+      apko publish apko.yaml "$ref" --arch amd64,arm64 --keyring-append ./melange.rsa.pub --sbom-path sbom
+      echo "published $ref (amd64, arm64)"
     # No inputs → the moon ci gate never marks it affected; the release workflow runs
     # it explicitly via `moon run '#image:image-publish'`. runInCI stays default (true)
     # so it is not filtered out of `moon run` in a CI environment.
