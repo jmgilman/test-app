@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/jmgilman/test-app/compare/backend/v0.4.0...backend/v0.5.0) (2026-06-30)
+
+
+### Features
+
+* **backend:** set Referrer-Policy: no-referrer on responses ([#14](https://github.com/jmgilman/test-app/issues/14)) ([1d0daff](https://github.com/jmgilman/test-app/commit/1d0daff98d0d48415d5daf166bd9e28bb5bcd9c6))
+
 ## [0.4.0](https://github.com/jmgilman/test-app/compare/backend/v0.3.0...backend/v0.4.0) (2026-06-30)
 
 
