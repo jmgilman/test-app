@@ -2,8 +2,19 @@ name: Release Please
 
 # release-please owns versioning for each project independently. On every push to
 # main it opens/updates a per-component release PR (separate-pull-requests). Merging
-# a release PR tags `<project>/vX.Y.Z` and cuts a GitHub release, which then
-# drives the image publish below.
+# a release PR tags `<project>/vX.Y.Z` and cuts a GitHub release, which then drives
+# the multi-arch image publish below.
+#
+# Publish is a generic, project-oblivious pipeline:
+#   plan  -> a data-driven (project x arch) build matrix is computed from
+#            release-please's released paths INTERSECT moon's image projects, with
+#            each project's arch list read from its apko.yaml. No project is ever
+#            named in this file.
+#   build -> melange builds the signed apks for ONE arch on a NATIVE runner (amd64 on
+#            ubuntu-24.04, arm64 on ubuntu-24.04-arm) — one arch, one process, one
+#            runner filesystem, no qemu. Each leg uploads its per-arch packages.
+#   assemble -> a single qemu-free `apko publish` per project stitches the collected
+#            per-arch packages into one signed multi-arch index, then attests it.
 on:
   push:
     branches: [main]
@@ -28,65 +39,211 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Generic publisher: builds and pushes an image for each project that was just
-  # released, tagged with that project's semver version. moon stays the executor —
-  # release-please decides what/which version, this job maps released paths to moon
-  # projects (by source) and runs the inherited image-publish task. It never names a
-  # project, so new image projects are picked up automatically.
-  publish-images:
+  # Compute the build/assemble matrices generically and mint the shared signing key.
+  # SELECTOR (release-please paths) x PLANNER (moon discovery) -> EXECUTOR input.
+  plan:
     needs: release-please
     if: ${{ needs.release-please.outputs.releases_created == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
-    env:
-      GOTOOLCHAIN: local
-      IMAGE_REGISTRY: ghcr.io/jmgilman
+    outputs:
+      build_matrix: ${{ steps.plan.outputs.build_matrix }}
+      assemble_matrix: ${{ steps.plan.outputs.assemble_matrix }}
+      any: ${{ steps.plan.outputs.any }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup mise
-        uses: jdx/mise-action@v4
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
         with:
           version: 2026.6.14
           cache: true
 
+      - name: Compute publish matrices
+        id: plan
+        env:
+          PATHS_RELEASED: ${{ needs.release-please.outputs.paths_released }}
+        run: |
+          set -euo pipefail
+          # Image projects, discovered by tag — never named here.
+          projects_json="$(moon query projects --tags image)"
+          : > build.ndjson
+          : > assemble.ndjson
+          # Released paths INTERSECT image projects (matched by moon project .source).
+          for path in $(echo "$PATHS_RELEASED" | jq -r '.[]'); do
+            proj="$(echo "$projects_json" | jq -r --arg s "$path" \
+              '.projects[] | select(.source == $s) | .id')"
+            if [ -z "$proj" ]; then
+              echo "released path '$path' is not an image project — skipping"
+              continue
+            fi
+            version="$(jq -r --arg p "$path" '.[$p] // empty' .release-please-manifest.json)"
+            [ -n "$version" ] || { echo "no manifest version for '$path'" >&2; exit 1; }
+            # Per-project arch list lives in its apko.yaml (the only generic source).
+            archs_csv="$(yq -r '.archs | join(",")' "$path/apko.yaml")"
+            [ -n "$archs_csv" ] && [ "$archs_csv" != "null" ] \
+              || { echo "no archs in $path/apko.yaml" >&2; exit 1; }
+            jq -cn --arg p "$proj" --arg s "$path" --arg v "$version" --arg a "$archs_csv" \
+              '{project:$p, source:$s, version:$v, archs:$a}' >> assemble.ndjson
+            for arch in $(echo "$archs_csv" | tr ',' ' '); do
+              # arch -> native runner map (arch dimension only; no project knowledge).
+              case "$arch" in
+                amd64) runner="ubuntu-24.04" ;;
+                arm64) runner="ubuntu-24.04-arm" ;;
+                *) echo "unsupported arch '$arch' in $path/apko.yaml" >&2; exit 1 ;;
+              esac
+              jq -cn --arg p "$proj" --arg s "$path" --arg v "$version" \
+                --arg ar "$arch" --arg r "$runner" \
+                '{project:$p, source:$s, version:$v, arch:$ar, runner:$r}' >> build.ndjson
+            done
+          done
+          build_matrix="$(jq -cs '.' build.ndjson)"
+          assemble_matrix="$(jq -cs '.' assemble.ndjson)"
+          if [ -s build.ndjson ]; then any=true; else any=false; fi
+          {
+            echo "build_matrix=$build_matrix"
+            echo "assemble_matrix=$assemble_matrix"
+            echo "any=$any"
+          } >> "$GITHUB_OUTPUT"
+          echo "::notice title=publish plan::any=$any"
+          echo "build_matrix=$build_matrix"
+          echo "assemble_matrix=$assemble_matrix"
+
+      # One ephemeral signing key, shared by every build leg so apko can verify all
+      # arches against a single keyring. (Throwaway-spike posture: a private key in a
+      # short-retention artifact; replace with a secret/KMS before the real pipeline.)
+      - name: Mint shared signing key
+        if: ${{ steps.plan.outputs.any == 'true' }}
+        run: melange keygen melange.rsa
+      - name: Upload signing key
+        if: ${{ steps.plan.outputs.any == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: melange-key
+          path: |
+            melange.rsa
+            melange.rsa.pub
+          if-no-files-found: error
+          retention-days: 1
+
+  # Per (project, arch) on a NATIVE runner: build that arch's signed apks only.
+  build:
+    needs: plan
+    if: ${{ needs.plan.outputs.any == 'true' }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.build_matrix) }}
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.6.14
+          cache: true
+      - name: Fetch shared signing key
+        uses: actions/download-artifact@v4
+        with:
+          name: melange-key
+          path: ${{ matrix.source }}
+      - name: Build ${{ matrix.project }} packages (${{ matrix.arch }})
+        env:
+          MELANGE_ARCH: ${{ matrix.arch }}
+        run: moon run "${{ matrix.project }}:image-build"
+      # Stage the single arch's apks flat so the artifact contract is unambiguous;
+      # assemble re-nests them under packages/<goarch>/ deterministically. amd64 and
+      # arm64 produce identically-named .apk files, so flattening across arches would
+      # silently corrupt the index — keeping each arch in its own artifact prevents it.
+      - name: Stage per-arch packages
+        run: |
+          set -euo pipefail
+          mkdir -p _stage
+          cp -a "${{ matrix.source }}"/packages/*/. _stage/
+      - name: Upload per-arch packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkgs-${{ matrix.project }}-${{ matrix.arch }}
+          path: _stage/
+          if-no-files-found: error
+          retention-days: 1
+
+  # Per project: collect every arch's packages, assemble one signed multi-arch index
+  # with a single qemu-free `apko publish`, and attest the index. Runs even if a build
+  # leg failed (!cancelled) so one project's failure can't block another's publish;
+  # apko + the per-arch presence check are the fail-loud gates.
+  assemble:
+    needs: [plan, build]
+    if: ${{ !cancelled() && needs.plan.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.assemble_matrix) }}
+    env:
+      IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+        with:
+          version: 2026.6.14
+          cache: true
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Register qemu/binfmt so melange can cross-build the non-native arch (arm64
-      # on the amd64 runner) inside its docker runner for the multi-arch publish.
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Publish released images
-        env:
-          PATHS_RELEASED: ${{ needs.release-please.outputs.paths_released }}
+      - name: Fetch shared signing key
+        uses: actions/download-artifact@v4
+        with:
+          name: melange-key
+          path: ${{ matrix.source }}
+      - name: Fetch per-arch packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pkgs-${{ matrix.project }}-*
+          path: _dl
+      - name: Reassemble packages/<goarch> (fail loud on a missing arch)
         run: |
           set -euo pipefail
-          # paths_released is a JSON array of the package paths released on this run.
-          for path in $(echo "$PATHS_RELEASED" | jq -r '.[]'); do
-            # The merged release PR already wrote the bumped version to the manifest.
-            version="$(jq -r --arg p "$path" '.[$p]' .release-please-manifest.json)"
-            # Map the released path to its moon project id, but only if that project
-            # produces an image (tagged `image`). Non-image releases are skipped.
-            project="$(moon query projects \
-              | jq -r --arg s "$path" '.projects[]
-                  | select(.config.tags | index("image"))
-                  | select(.source == $s)
-                  | .id')"
-            if [ -z "$project" ]; then
-              echo "no image project for released path '$path' — skipping"
-              continue
-            fi
-            echo "publishing image for '$project' (path '$path') at version '$version'"
-            IMAGE_TAG="$version" moon run "$project:image-publish"
+          src="${{ matrix.source }}"
+          rm -rf "$src/packages"
+          for arch in $(echo "${{ matrix.archs }}" | tr ',' ' '); do
+            case "$arch" in
+              amd64) goarch="x86_64" ;;
+              arm64) goarch="aarch64" ;;
+              *) echo "unsupported arch '$arch'" >&2; exit 1 ;;
+            esac
+            dl="_dl/pkgs-${{ matrix.project }}-${arch}"
+            [ -d "$dl" ] || { echo "missing packages artifact for ${{ matrix.project }} arch '$arch' ($dl) — its build leg likely failed" >&2; exit 1; }
+            mkdir -p "$src/packages/$goarch"
+            cp -a "$dl/." "$src/packages/$goarch/"
+            ls "$src/packages/$goarch"/*.apk >/dev/null 2>&1 \
+              || { echo "no .apk packages for arch '$arch' in $src/packages/$goarch" >&2; exit 1; }
           done
+      - name: Assemble + publish multi-arch image
+        id: publish
+        env:
+          IMAGE_TAG: ${{ matrix.version }}
+          APKO_ARCHS: ${{ matrix.archs }}
+        run: |
+          set -euo pipefail
+          moon run "${{ matrix.project }}:image-assemble"
+          ref="$(grep -o '[^[:space:]]*@sha256:[0-9a-f]\{64\}' "${{ matrix.source }}/apko-ref.txt" | tail -n1)"
+          [ -n "$ref" ] || { echo "could not parse published digest:" >&2; cat "${{ matrix.source }}/apko-ref.txt" >&2; exit 1; }
+          echo "digest=${ref##*@}" >> "$GITHUB_OUTPUT"
+          echo "published $ref"
+      - name: Attest provenance (multi-arch index)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REGISTRY }}/${{ matrix.project }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          push-to-registry: true

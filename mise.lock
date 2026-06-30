@@ -64,6 +64,46 @@ checksum = "sha256:f6f06d94b6241521c53d15450c5209b028270bf966f842afb11c030c79f5b
 url = "https://github.com/golangci/golangci-lint/releases/download/v2.12.2/golangci-lint-2.12.2-darwin-amd64.tar.gz"
 provenance = "github-attestations"
 
+[[tools."aqua:jqlang/jq"]]
+version = "1.7.1"
+backend = "aqua:jqlang/jq"
+
+[tools."aqua:jqlang/jq"."platforms.linux-arm64"]
+checksum = "sha256:4dd2d8a0661df0b22f1bb9a1f9830f06b6f3b8f7d91211a1ef5d7c4f06a8b4a5"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-arm64"
+
+[tools."aqua:jqlang/jq"."platforms.linux-x64"]
+checksum = "sha256:5942c9b0934e510ee61eb3e30273f1b3fe2590df93933a93d7c58b81d19c8ff5"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64"
+
+[tools."aqua:jqlang/jq"."platforms.macos-arm64"]
+checksum = "sha256:0bbe619e663e0de2c550be2fe0d240d076799d6f8a652b70fa04aea8a8362e8a"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-arm64"
+
+[tools."aqua:jqlang/jq"."platforms.macos-x64"]
+checksum = "sha256:4155822bbf5ea90f5c79cf254665975eb4274d426d0709770c21774de5407443"
+url = "https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-macos-amd64"
+
+[[tools."aqua:mikefarah/yq"]]
+version = "4.52.4"
+backend = "aqua:mikefarah/yq"
+
+[tools."aqua:mikefarah/yq"."platforms.linux-arm64"]
+checksum = "sha256:4c2cc022a129be5cc1187959bb4b09bebc7fb543c5837b93001c68f97ce39a5d"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_arm64"
+
+[tools."aqua:mikefarah/yq"."platforms.linux-x64"]
+checksum = "sha256:0c4d965ea944b64b8fddaf7f27779ee3034e5693263786506ccd1c120f184e8c"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_linux_amd64"
+
+[tools."aqua:mikefarah/yq"."platforms.macos-arm64"]
+checksum = "sha256:6bfa43a439936644d63c70308832390c8838290d064970eaada216219c218a13"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_darwin_arm64"
+
+[tools."aqua:mikefarah/yq"."platforms.macos-x64"]
+checksum = "sha256:d72a75fe9953c707d395f653d90095b133675ddd61aa738e1ac9a73c6c05e8be"
+url = "https://github.com/mikefarah/yq/releases/download/v4.52.4/yq_darwin_amd64"
+
 [[tools."aqua:moonrepo/moon"]]
 version = "2.3.5"
 backend = "aqua:moonrepo/moon"
